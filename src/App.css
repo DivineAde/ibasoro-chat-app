@@ -1,7 +1,0 @@
-/* App-level font & body reset — detailed styles live in index.css */
-body {
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  height: 100%;
-  width: 100%;
-  overflow: hidden;
-}

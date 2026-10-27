@@ -1,0 +1,257 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Design tokens
+   Colours are stored as space-separated RGB channels so Tailwind can apply
+   opacity modifiers (e.g. `bg-accent/10`). `html[data-theme]` is set by the
+   inline script in index.html and kept in sync by ThemeProvider.
+   ───────────────────────────────────────────────────────────────────────────── */
+:root,
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --c-canvas: 247 245 241; /* app background: warm paper */
+  --c-surface: 255 255 255; /* cards, lists, headers */
+  --c-sunken: 241 239 234; /* inputs, wells, secondary fills */
+  --c-raised: 255 255 255; /* menus, dialogs */
+
+  --c-ink: 28 25 35;
+  --c-ink-2: 90 86 104;
+  --c-ink-3: 112 108 126;
+
+  /* Brand: adire indigo */
+  --c-accent: 52 64 181;
+  --c-accent-hover: 44 54 160;
+  --c-accent-soft: 233 235 250;
+  --c-accent-ink: 52 64 181; /* accent used as text */
+  --c-accent-fg: 255 255 255; /* text on accent */
+
+  --c-bubble-out: 52 64 181;
+  --c-bubble-in: 255 255 255;
+
+  --c-danger: 190 40 40;
+  --c-danger-soft: 253 235 235;
+  --c-success: 22 150 98;
+
+  --line: rgb(28 25 35 / 0.09);
+  --line-strong: rgb(28 25 35 / 0.16);
+  --shadow: 28 25 35;
+  --scrim: rgb(20 18 28 / 0.4);
+  --glass: rgb(255 255 255 / 0.78);
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --c-canvas: 14 14 18;
+  --c-surface: 24 24 30;
+  --c-sunken: 33 33 41;
+  --c-raised: 38 38 47; /* elevated surfaces get lighter in dark mode */
+
+  --c-ink: 240 238 245;
+  --c-ink-2: 168 165 182;
+  --c-ink-3: 133 130 148;
+
+  --c-accent: 84 99 224;
+  --c-accent-hover: 100 114 236;
+  --c-accent-soft: 38 41 78;
+  --c-accent-ink: 148 160 255;
+  --c-accent-fg: 255 255 255;
+
+  --c-bubble-out: 70 84 214;
+  --c-bubble-in: 40 40 49;
+
+  --c-danger: 235 90 90;
+  --c-danger-soft: 62 28 32;
+  --c-success: 52 199 130;
+
+  --line: rgb(255 255 255 / 0.09);
+  --line-strong: rgb(255 255 255 / 0.17);
+  --shadow: 0 0 0;
+  --scrim: rgb(0 0 0 / 0.6);
+  --glass: rgb(24 24 30 / 0.78);
+}
+
+:root {
+  /* Motion. Strong ease-out for entrances/presses, gentle in-out for on-screen
+     movement, and an iOS-like curve for sheets and drawers. */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* ── Base ───────────────────────────────────────────────────────────────── */
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-canvas font-sans text-body text-ink antialiased;
+    overflow: hidden;
+    overscroll-behavior: none;
+    -webkit-tap-highlight-color: transparent;
+    text-rendering: optimizeLegibility;
+  }
+
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  ::selection {
+    background: rgb(var(--c-accent) / 0.25);
+  }
+
+  :focus {
+    outline: none;
+  }
+  :focus-visible {
+    outline: 2px solid rgb(var(--c-accent-ink));
+    outline-offset: 2px;
+    border-radius: inherit;
+  }
+
+  button {
+    cursor: pointer;
+  }
+  button:disabled {
+    cursor: not-allowed;
+  }
+
+  /* 16px minimum stops iOS Safari zooming into inputs. */
+  input,
+  textarea,
+  select {
+    font-size: 1rem;
+  }
+
+  /* Thin, unobtrusive scrollbars */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--line-strong) transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  *::-webkit-scrollbar-thumb {
+    background: var(--line-strong);
+    border-radius: 8px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+}
+
+@layer components {
+  /* Press feedback: every pressable thing responds immediately. */
+  .press {
+    transition: transform 160ms var(--ease-out), background-color 160ms var(--ease-out),
+      color 160ms var(--ease-out), opacity 160ms var(--ease-out), box-shadow 160ms var(--ease-out);
+  }
+  .press:active:not(:disabled) {
+    transform: scale(0.97);
+  }
+
+  /* Translucent bar à la iOS navigation bar */
+  .glass {
+    background: var(--glass);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    backdrop-filter: saturate(180%) blur(20px);
+  }
+
+  /* Subtle adire-inspired motif behind the conversation. Opacity lives in the
+     SVG so the pattern stays quiet in both themes. */
+  .chat-pattern {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='72' height='72' viewBox='0 0 72 72'%3E%3Cg fill='none' stroke='%233440b5' stroke-width='1.4' opacity='.06'%3E%3Ccircle cx='18' cy='18' r='7'/%3E%3Ccircle cx='18' cy='18' r='2.5' fill='%233440b5'/%3E%3Ccircle cx='54' cy='54' r='7'/%3E%3Ccircle cx='54' cy='54' r='2.5' fill='%233440b5'/%3E%3Cpath d='M54 12v12M48 18h12M12 54v12M6 60h12' stroke-linecap='round'/%3E%3C/g%3E%3C/svg%3E");
+  }
+  :root[data-theme="dark"] .chat-pattern {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='72' height='72' viewBox='0 0 72 72'%3E%3Cg fill='none' stroke='%238c9aff' stroke-width='1.4' opacity='.07'%3E%3Ccircle cx='18' cy='18' r='7'/%3E%3Ccircle cx='18' cy='18' r='2.5' fill='%238c9aff'/%3E%3Ccircle cx='54' cy='54' r='7'/%3E%3Ccircle cx='54' cy='54' r='2.5' fill='%238c9aff'/%3E%3Cpath d='M54 12v12M48 18h12M12 54v12M6 60h12' stroke-linecap='round'/%3E%3C/g%3E%3C/svg%3E");
+  }
+
+  /* Dialog / sheet scrim fade */
+  dialog::backdrop {
+    background: var(--scrim);
+  }
+}
+
+/* While the theme changes, don't let every element animate its colours. */
+:root[data-theme-switching] *,
+:root[data-theme-switching] *::before,
+:root[data-theme-switching] *::after {
+  transition: none !important;
+}
+
+/* Skeleton shimmer */
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: rgb(var(--c-sunken));
+}
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgb(var(--c-ink) / 0.05), transparent);
+  animation: shimmer 1.4s infinite;
+}
+
+/* Accessibility: respect reduced-motion. Keep fades (they aid comprehension),
+   drop movement and looping animation. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+  .press:active:not(:disabled) {
+    transform: none;
+  }
+}
+
+/* Avatar tints – light: pale background / dark text; dark: the reverse. */
+:root {
+  --avatar-bg: 90%;
+  --avatar-fg: 30%;
+}
+:root[data-theme="dark"] {
+  --avatar-bg: 28%;
+  --avatar-fg: 85%;
+}
+
+/* Native <dialog> backdrop animation (enter / exit) */
+dialog[open]::backdrop {
+  animation: fade-in 200ms var(--ease-out) both;
+}
+dialog[data-closing]::backdrop {
+  animation: fade-out 140ms var(--ease-out) both;
+}
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
