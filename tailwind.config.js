@@ -87,6 +87,7 @@ export default {
           "30%": { transform: "translateY(-3px)", opacity: 1 },
         },
         shimmer: { to: { transform: "translateX(100%)" } },
+        flash: { "0%, 35%": { backgroundColor: "rgb(var(--c-accent) / 0.22)" }, "100%": { backgroundColor: "rgb(var(--c-accent) / 0)" } },
       },
       animation: {
         "pop-in": "pop-in 180ms cubic-bezier(0.23, 1, 0.32, 1) both",
@@ -100,6 +101,7 @@ export default {
         "list-in": "list-in 280ms cubic-bezier(0.23, 1, 0.32, 1) both",
         "pane-in": "pane-in 260ms cubic-bezier(0.32, 0.72, 0, 1) both",
         "typing-dot": "typing-dot 1.1s ease-in-out infinite",
+        flash: "flash 1.6s ease-out both",
       },
     },
   },

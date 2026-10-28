@@ -9,6 +9,7 @@ import { IconButton } from "../../components/ui/IconButton";
 import { ThemeToggle } from "../../components/ui/ThemeToggle";
 import { LogoMark } from "../../components/ui/Logo";
 import { ChatList } from "./ChatList";
+import { SearchResults } from "./SearchResults";
 import { NewChatDialog } from "./NewChatDialog";
 import { NewGroupDialog } from "./NewGroupDialog";
 import { SettingsDialog } from "./SettingsDialog";
@@ -26,6 +27,9 @@ export function Sidebar({ className }) {
     if (!q) return chats;
     return chats.filter((c) => chatTitle(c, user).toLowerCase().includes(q));
   }, [chats, search, user]);
+
+  const query = search.trim();
+  const searching = query.length >= 2 && chatsStatus === "loaded";
 
   return (
     <aside className={cn("flex min-h-0 flex-col bg-surface", className)} aria-label="Conversations">
@@ -59,7 +63,7 @@ export function Sidebar({ className }) {
           <Search size={17} className="shrink-0 text-ink-3" aria-hidden />
           <input
             type="search"
-            aria-label="Search conversations"
+            aria-label="Search conversations and messages"
             placeholder="Search"
             autoComplete="off"
             value={search}
@@ -75,6 +79,9 @@ export function Sidebar({ className }) {
       </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pt-1" onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 4)}>
+        {searching ? (
+          <SearchResults query={query} chats={filtered} activeChatId={activeChatId} onFindPeople={() => setDialog("chat")} />
+        ) : (
         <ChatList
           chats={filtered}
           status={chatsStatus}
@@ -84,6 +91,7 @@ export function Sidebar({ className }) {
           onFindPeople={() => setDialog("chat")}
           onRetry={loadChats}
         />
+        )}
       </div>
 
       <NewChatDialog open={dialog === "chat"} onClose={() => setDialog(null)} initialQuery={search.trim()} />

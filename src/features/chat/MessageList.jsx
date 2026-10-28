@@ -17,7 +17,7 @@ const reduceMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)")
  *  – otherwise leaves your position alone and offers a "new messages" jump
  *  – loads older pages when you reach the top, without the view jumping
  */
-export function MessageList({ chat, items, hasMore, loadingMore, typingNames }) {
+export function MessageList({ chat, items, hasMore, loadingMore, hasNewer, onLatest, typingNames, focus, onFocused, highlightId }) {
   const { user: me } = useAuth();
   const { loadOlder, retryMessage, discardMessage } = useChatActions();
   const scroller = useRef(null);
@@ -64,6 +64,16 @@ export function MessageList({ chat, items, hasMore, loadingMore, typingNames }) 
 
     prev.current = { firstId, lastId: last?._id ?? null, height: el.scrollHeight, top: el.scrollTop, chatId: chat._id };
   }, [items, chat._id, me._id]);
+
+  // Scroll a requested message (search hit, reply quote) to the middle of the view.
+  useLayoutEffect(() => {
+    if (!focus) return;
+    const el = scroller.current?.querySelector(`[data-message-id="${CSS.escape(focus.id)}"]`);
+    if (!el) return; // not rendered yet: the effect runs again when `items` changes
+    stick.current = false;
+    el.scrollIntoView({ block: "center", behavior: reduceMotion() ? "auto" : "smooth" });
+    onFocused();
+  }, [focus, items, onFocused]);
 
   // Anything that makes the transcript taller while you're at the bottom (a failed-send
   // row, the typing bubble, an image finishing loading) keeps the latest content in view.
@@ -141,6 +151,7 @@ export function MessageList({ chat, items, hasMore, loadingMore, typingNames }) 
                 isGroup={chat.isGroupChat}
                 read={row.mine && isReadByAll(row.message, chat, me._id)}
                 animate={!initialIds.current.has(row.message._id)}
+                highlight={row.message._id === highlightId}
                 onRetry={() => retryMessage(chat._id, row.message._id)}
                 onDiscard={() => discardMessage(chat._id, row.message._id)}
               />
@@ -156,11 +167,11 @@ export function MessageList({ chat, items, hasMore, loadingMore, typingNames }) 
       {/* Jump to latest */}
       <button
         type="button"
-        onClick={() => scrollToBottom(true)}
+        onClick={() => (hasNewer ? onLatest() : scrollToBottom(true))}
         aria-label={missed ? `Jump to latest, ${missed} new` : "Jump to latest"}
-        tabIndex={showJump ? 0 : -1}
+        tabIndex={showJump || hasNewer ? 0 : -1}
         className="press glass absolute bottom-3 right-4 flex h-11 items-center gap-1.5 rounded-full px-3.5 text-footnote font-semibold text-ink shadow-overlay transition-[opacity,transform] duration-200 ease-out data-[hidden=true]:pointer-events-none data-[hidden=true]:translate-y-2 data-[hidden=true]:opacity-0"
-        data-hidden={!showJump}
+        data-hidden={!showJump && !hasNewer}
       >
         <ArrowDown size={16} aria-hidden />
         {missed > 0 && <span className="tabular-nums text-accent-ink">{missed} new</span>}

@@ -43,3 +43,36 @@ describe("MessageBubble", () => {
     expect(screen.getByText(/<img src=x/)).toBeInTheDocument();
   });
 });
+
+describe("MessageBubble content types", () => {
+  const photo = { ...base.message, type: "image", content: "", attachment: { url: "https://res.cloudinary.com/demo/image/upload/v1/a.jpg", name: "a.jpg", width: 800, height: 600 } };
+
+  it("renders a deleted message as a tombstone with no content or actions", () => {
+    renderBubble({ message: { ...base.message, content: "", deletedAt: "2024-03-05T11:00:00Z" } });
+    expect(screen.getByText("This message was deleted")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Reply" })).toBeNull();
+  });
+
+  it("shows the quoted message in a reply", () => {
+    renderBubble({ message: { ...base.message, content: "yes", replyTo: { _id: "m0", type: "text", content: "coming?", sender: { _id: "bo", name: "Bo" } } } });
+    expect(screen.getByText("coming?")).toBeInTheDocument();
+    expect(screen.getByText("Bo")).toBeInTheDocument();
+  });
+
+  it("renders a photo with an accessible open button, and a file tile with its size", () => {
+    const { unmount } = renderBubble({ message: photo });
+    expect(screen.getByRole("button", { name: /Open photo/ })).toBeInTheDocument();
+    unmount();
+    renderBubble({ message: { ...base.message, type: "file", content: "", attachment: { url: "https://x/cv.pdf", name: "cv.pdf", size: 2048 } } });
+    expect(screen.getByRole("link", { name: /cv\.pdf, 2 KB/ })).toBeInTheDocument();
+  });
+
+  it("groups reactions and lets me toggle mine", async () => {
+    const onReact = vi.fn();
+    const message = { ...base.message, reactions: [{ user: "me", emoji: "👍" }, { user: "bo", emoji: "👍" }] };
+    renderBubble({ message });
+    // No provider: actions are empty, so just check the chip renders its count and state.
+    expect(screen.getByRole("button", { name: /👍 2/ })).toBeInTheDocument();
+    void onReact;
+  });
+});

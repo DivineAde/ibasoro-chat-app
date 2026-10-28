@@ -23,3 +23,7 @@ export const removeMember = async (chatId, userId) =>
 export const leaveGroup = async (chatId) => (await api.post(`/chat/${chatId}/leave`)).data;
 
 export const updateProfile = async (patch) => (await api.patch("/user/me", patch)).data;
+
+/** Full-text-ish search over the messages in my chats. */
+export const searchMessages = async (q, signal) =>
+  (await api.get("/message/search", { params: { q }, signal })).data.results;

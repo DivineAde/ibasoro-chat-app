@@ -1,4 +1,5 @@
 import { idOf, upsertMessage } from "../lib/chat";
+import { withReaction } from "../lib/reactions";
 
 /**
  * All chat state lives in one pure reducer so the real-time rules
@@ -8,7 +9,8 @@ import { idOf, upsertMessage } from "../lib/chat";
  * state = {
  *   chatsStatus: "idle" | "loading" | "loaded" | "error",
  *   chats: Chat[]                       // newest activity first
- *   messages: { [chatId]: { items, hasMore, status, loadingMore } }
+ *   messages: { [chatId]: { items, hasMore, hasNewer, status, loadingMore } }
+ *             hasNewer = the list is a window around a search hit, not the latest page
  *   typing:   { [chatId]: { [userId]: name } }
  *   online:   { [userId]: true }
  *   lastSeen: { [userId]: isoString }
@@ -79,7 +81,7 @@ export function chatReducer(state, action) {
         ...state,
         messages: {
           ...state.messages,
-          [action.chatId]: { items: [], hasMore: false, status: "loading", loadingMore: false },
+          [action.chatId]: { items: [], hasMore: false, hasNewer: false, status: "loading", loadingMore: false },
         },
       };
     case "messages/loaded":
@@ -94,6 +96,23 @@ export function chatReducer(state, action) {
               ...(state.messages[action.chatId]?.items || []).filter((m) => m.status),
             ],
             hasMore: action.hasMore,
+            hasNewer: false,
+            status: "loaded",
+            loadingMore: false,
+          },
+        },
+      };
+    // A window of history around one message (jump from search). Newer messages exist
+    // on the server but aren't in the list, so live arrivals must not be appended.
+    case "messages/window":
+      return {
+        ...state,
+        messages: {
+          ...state.messages,
+          [action.chatId]: {
+            items: action.messages,
+            hasMore: action.hasMore,
+            hasNewer: action.hasNewer,
             status: "loaded",
             loadingMore: false,
           },
@@ -120,7 +139,7 @@ export function chatReducer(state, action) {
       const chatId = idOf(message.chat);
       let next = state;
 
-      if (state.messages[chatId]?.status === "loaded") {
+      if (state.messages[chatId]?.status === "loaded" && !state.messages[chatId].hasNewer) {
         // Our own message echoed back carries the id of its optimistic bubble: swap it in place.
         next = patchMessages(next, chatId, (cur) => ({
           items: upsertMessage(
@@ -146,6 +165,29 @@ export function chatReducer(state, action) {
       return { ...next, chats: sortChats(next.chats), typing: { ...next.typing, [chatId]: typing } };
     }
 
+    // The server changed a message (edit, delete, reaction). Replace it wholesale:
+    // a delete removes fields, so merging would resurrect them.
+    case "message/updated": {
+      const { message } = action;
+      const chatId = idOf(message.chat);
+      const swap = (m) => (m._id === message._id ? { ...message } : m);
+      let next = patchMessages(state, chatId, (cur) => ({ items: cur.items.map(swap) }));
+      next = patchChat(next, chatId, (c) => (c.latestMessage?._id === message._id ? { latestMessage: message } : {}));
+      return next;
+    }
+
+    // My reaction, shown before the server confirms it.
+    case "message/reaction": {
+      const { chatId, messageId, meId, emoji } = action;
+      const react = (m) => (m._id === messageId ? { ...m, reactions: withReaction(m.reactions, meId, emoji) } : m);
+      return patchMessages(state, chatId, (cur) => ({ items: cur.items.map(react) }));
+    }
+
+    case "message/progress":
+      return patchMessages(state, action.chatId, (cur) => ({
+        items: cur.items.map((m) => (m._id === action.tempId ? { ...m, progress: action.progress } : m)),
+      }));
+
     case "message/optimistic":
       return patchMessages(state, action.chatId, (cur) => ({ items: [...cur.items, action.message] }));
     case "message/failed":
@@ -154,7 +196,7 @@ export function chatReducer(state, action) {
       }));
     case "message/retrying":
       return patchMessages(state, action.chatId, (cur) => ({
-        items: cur.items.map((m) => (m._id === action.tempId ? { ...m, status: "sending" } : m)),
+        items: cur.items.map((m) => (m._id === action.tempId ? { ...m, status: "sending", progress: 0 } : m)),
       }));
     case "message/discarded":
       return patchMessages(state, action.chatId, (cur) => ({

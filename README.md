@@ -22,9 +22,10 @@ src/
     chat/                sidebar, list, conversation, composer, dialogs, API wrappers
   components/ui/         the design-system kit: Button, IconButton, Input, Dialog, Menu,
                          Avatar, Toast, Switch, SegmentedControl, Skeleton, EmptyState…
+    chat/message/        bubble content (photo, voice, file), reactions, reply quote, action menu, lightbox
   context/               Auth, Theme, Chat (socket + store) and the pure chatReducer
   lib/                   api, socket, format, chat helpers, storage, sound (no React)
-  hooks/                 useDebounce, useMediaQuery
+  hooks/                 useDebounce, useMediaQuery, useVoiceRecorder
   styles/index.css       design tokens (light + dark) and global rules
 ```
 
@@ -43,4 +44,13 @@ Rules of thumb: components render, `lib/` and `chatReducer` hold the logic (and 
 
 `ChatContext` owns one authenticated socket and a reducer. Sending is optimistic: the bubble appears instantly (`sending` → `failed` with Retry/Delete); the server echoes your `clientId` so the bubble is swapped in place, never duplicated. Unread counts, read receipts, presence and typing all flow through `chatReducer`, which is pure and unit-tested.
 
-See the backend repo's `docs/ROADMAP.md` for what to build next (voice notes, calls, …).
+## Messages: replies, reactions, attachments, voice
+
+- **Message actions** live in `features/chat/message/`: a hover toolbar and right-click menu on desktop, long-press (menu) and swipe-right (reply) on touch. `MessageActionsContext` hands stable callbacks to memoised bubbles, so the composer re-rendering never re-renders the transcript.
+- **Edits, deletes and reactions are optimistic** and roll back with a toast if the server refuses. The server replaces the whole message on `message:updated`; `chatReducer` swaps it wholesale because a delete removes fields.
+- **Attachments** upload straight to Cloudinary (`lib/upload.js`, signed by the API when `CLOUDINARY_*` is set, otherwise the old unsigned preset) with real progress. `ChatContext` keeps the `File` in an outbox so a failed send can be retried without re-picking; photos over ~1.5 MB are downscaled in the browser first (`lib/media.js`).
+- **Voice notes** record with `MediaRecorder` (`hooks/useVoiceRecorder.js`); the waveform is sampled while recording and stored with the message. Playback asks Cloudinary for an `.mp3` of the clip so it plays everywhere, and only one clip plays at a time.
+- **Search** (`SearchResults.jsx`) matches chats locally and messages on the server; a result opens `/chat/:id?m=<messageId>`, which loads the page of history around it and highlights the message.
+- **Push** (`lib/push.js`, `public/push-sw.js`) is opt-in from Settings. The service worker stays quiet while the app is visible. iPhones only allow Web Push once the app is added to the Home Screen.
+
+See the backend repo's `docs/ROADMAP.md` for what to build next (calls, …).

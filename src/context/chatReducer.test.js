@@ -135,3 +135,54 @@ describe("read receipts, presence and typing", () => {
     expect(run(loaded(chat("c1")), { type: "reset" })).toEqual(initialChatState);
   });
 });
+
+describe("edits, deletes and reactions", () => {
+  const base = () =>
+    run(loaded(chat("c1", { latestMessage: msg("m2") })), opened("c1", [msg("m1"), msg("m2", { attachment: { url: "https://x/y.jpg" }, type: "image" })]));
+
+  it("replaces a message wholesale, so a delete drops its attachment", () => {
+    const s = chatReducer(base(), { type: "message/updated", message: msg("m2", { type: "image", content: "", deletedAt: "2024-01-03T00:00:00Z" }) });
+    const m = s.messages.c1.items[1];
+    expect(m.deletedAt).toBeTruthy();
+    expect(m.attachment).toBeUndefined();
+  });
+
+  it("keeps the chat list preview in step with an edited latest message", () => {
+    const s = chatReducer(base(), { type: "message/updated", message: msg("m2", { content: "fixed", editedAt: "2024-01-03T00:00:00Z" }) });
+    expect(s.chats[0].latestMessage.content).toBe("fixed");
+  });
+
+  it("applies my reaction immediately and replaces a previous one", () => {
+    let s = chatReducer(base(), { type: "message/reaction", chatId: "c1", messageId: "m1", meId: ME, emoji: "👍" });
+    s = chatReducer(s, { type: "message/reaction", chatId: "c1", messageId: "m1", meId: ME, emoji: "❤️" });
+    expect(s.messages.c1.items[0].reactions).toEqual([{ user: ME, emoji: "❤️" }]);
+    s = chatReducer(s, { type: "message/reaction", chatId: "c1", messageId: "m1", meId: ME, emoji: null });
+    expect(s.messages.c1.items[0].reactions).toEqual([]);
+  });
+
+  it("tracks upload progress on the optimistic message and resets it on retry", () => {
+    let s = chatReducer(base(), { type: "message/optimistic", chatId: "c1", message: msg("tmp-1", { status: "sending", progress: 0 }) });
+    s = chatReducer(s, { type: "message/progress", chatId: "c1", tempId: "tmp-1", progress: 0.6 });
+    expect(s.messages.c1.items.at(-1).progress).toBe(0.6);
+    s = chatReducer(s, { type: "message/failed", chatId: "c1", tempId: "tmp-1" });
+    s = chatReducer(s, { type: "message/retrying", chatId: "c1", tempId: "tmp-1" });
+    expect(s.messages.c1.items.at(-1)).toMatchObject({ status: "sending", progress: 0 });
+  });
+});
+
+describe("jumping to an older message", () => {
+  const windowed = () =>
+    run(loaded(chat("c1")), { type: "messages/window", chatId: "c1", messages: [msg("m3"), msg("m4")], hasMore: true, hasNewer: true });
+
+  it("does not append live messages to a window that is missing newer history", () => {
+    const s = chatReducer(windowed(), { type: "message/received", message: msg("m99"), meId: ME, countUnread: true });
+    expect(s.messages.c1.items.map((m) => m._id)).toEqual(["m3", "m4"]);
+    expect(s.chats[0].unreadCount).toBe(1); // but the chat list still updates
+  });
+
+  it("returns to normal once the latest page is loaded again", () => {
+    const s = chatReducer(windowed(), opened("c1", [msg("m98"), msg("m99")]));
+    expect(s.messages.c1.hasNewer).toBe(false);
+    expect(chatReducer(s, { type: "message/received", message: msg("m100"), meId: ME }).messages.c1.items.at(-1)._id).toBe("m100");
+  });
+});

@@ -3,6 +3,14 @@ import { cn } from "../../lib/cn";
 
 const MenuContext = createContext(null);
 
+// Written out in full so Tailwind can see the class names.
+const ORIGIN = {
+  "bottom-end": "origin-top-right",
+  "bottom-start": "origin-top-left",
+  "top-end": "origin-bottom-right",
+  "top-start": "origin-bottom-left",
+};
+
 /**
  * Small accessible dropdown menu.
  *   <Menu trigger={<IconButton label="More" icon={MoreHorizontal} />}>
@@ -10,7 +18,7 @@ const MenuContext = createContext(null);
  *   </Menu>
  * Arrow keys move between items, Escape closes and returns focus to the trigger.
  */
-export function Menu({ trigger, children, align = "end", className }) {
+export function Menu({ trigger, children, align = "end", side = "bottom", className }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef(null);
   const triggerRef = useRef(null);
@@ -61,8 +69,10 @@ export function Menu({ trigger, children, align = "end", className }) {
             onKeyDown={onKeyDown}
             // Scale from the corner nearest the trigger so it feels anchored to it.
             className={cn(
-              "absolute top-full z-30 mt-2 min-w-[220px] animate-pop-in rounded-[16px] bg-raised p-1.5 shadow-overlay",
-              align === "end" ? "right-0 origin-top-right" : "left-0 origin-top-left"
+              "absolute z-30 min-w-[220px] animate-pop-in rounded-[16px] bg-raised p-1.5 shadow-overlay",
+              side === "top" ? "bottom-full mb-2" : "top-full mt-2",
+              align === "end" ? "right-0" : "left-0",
+              ORIGIN[`${side}-${align}`]
             )}
           >
             {children}

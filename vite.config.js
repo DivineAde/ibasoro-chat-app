@@ -24,7 +24,11 @@ export default defineConfig({
       },
       // Only the app shell is precached. API and socket traffic is cross-origin
       // and never touched by the service worker.
-      workbox: { navigateFallback: "/index.html", globPatterns: ["**/*.{js,css,html,svg,png,ico,woff2}"] },
+      workbox: {
+        navigateFallback: "/index.html",
+        globPatterns: ["**/*.{js,css,html,svg,png,ico,woff2}"],
+        importScripts: ["push-sw.js"], // push + notification-click handlers
+      },
     }),
   ],
   server: { port: 5173 },

@@ -14,14 +14,46 @@ export const chatPicture = (chat, me) => (chat?.isGroupChat ? null : getOtherUse
 /** The DB default avatar is an anonymous silhouette – prefer our initials. */
 export const isDefaultPic = (src) => !src || /anonymous-avatar-icon/.test(src);
 
+export const isDeleted = (m) => Boolean(m?.deletedAt);
+
+/** What a message looks like when it can't be shown in full (list rows, reply quotes). */
+export const messagePreview = (m) => {
+  if (!m) return "";
+  if (isDeleted(m)) return "Message deleted";
+  if (m.type === "image") return m.content ? `📷 ${m.content}` : "📷 Photo";
+  if (m.type === "voice") return "🎤 Voice message";
+  if (m.type === "file") return `📎 ${m.attachment?.name || "File"}`;
+  return m.content;
+};
+
 /** One-line preview for the chat list. */
 export const chatPreview = (chat, me) => {
   const m = chat?.latestMessage;
   if (!m) return null;
   const mine = idOf(m.sender) === me?._id;
   const prefix = mine ? "You: " : chat.isGroupChat ? `${m.sender?.name?.split(" ")[0] || ""}: ` : "";
-  return `${prefix}${m.content}`;
+  return `${prefix}${messagePreview(m)}`;
 };
+
+export const EDIT_WINDOW_MS = 15 * 60 * 1000;
+
+/** Mirrors the server rule: your own text message, not deleted, within 15 minutes. */
+export const canEditMessage = (m, meId, now = Date.now()) =>
+  idOf(m.sender) === meId &&
+  (m.type || "text") === "text" &&
+  !isDeleted(m) &&
+  !m.status &&
+  now - new Date(m.createdAt).getTime() < EDIT_WINDOW_MS;
+
+/** The slice of a message a reply keeps, shaped like the server's populated `replyTo`. */
+export const replySnapshot = (m) => ({
+  _id: m._id,
+  type: m.type || "text",
+  content: m.content,
+  deletedAt: m.deletedAt,
+  attachment: m.attachment ? { name: m.attachment.name } : undefined,
+  sender: { _id: idOf(m.sender), name: m.sender?.name },
+});
 
 /** Insert or replace by `_id`, keeping order (messages are oldest → newest). */
 export const upsertMessage = (list, message) => {

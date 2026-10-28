@@ -7,10 +7,11 @@ import {
   useReducer,
   useRef,
 } from "react";
-import { useMatch } from "react-router-dom";
+import { useMatch, useNavigate } from "react-router-dom";
 import { api, errorMessage } from "../lib/api";
 import { createSocket } from "../lib/socket";
-import { idOf } from "../lib/chat";
+import { idOf, replySnapshot } from "../lib/chat";
+import { uploadFile } from "../lib/upload";
 import { playReceive } from "../lib/sound";
 import { useAuth } from "./AuthContext";
 import { chatReducer, initialChatState } from "./chatReducer";
@@ -30,6 +31,7 @@ export function ChatProvider({ children }) {
   const { user, signOut } = useAuth();
   const toast = useToast();
   const [state, dispatch] = useReducer(chatReducer, initialChatState);
+  const navigate = useNavigate();
   const match = useMatch("/chat/:chatId");
   const activeChatId = match?.params.chatId || null;
 
@@ -87,54 +89,194 @@ export function ChatProvider({ children }) {
     [toast]
   );
 
-  const postMessage = useCallback(
-    async (chatId, tempId, content) => {
+  // Everything needed to (re)send a message that hasn't reached the server yet. Files can't
+  // live in the reducer, so the outbox keeps them, keyed by the optimistic message id.
+  const outbox = useRef(new Map());
+
+  const deliver = useCallback(
+    async (chatId, tempId) => {
+      const job = outbox.current.get(tempId);
+      if (!job) return;
       try {
-        const { data } = await api.post("/message", { chatId, content, clientId: tempId });
+        let attachment = job.attachment;
+        if (job.file) {
+          job.controller = new AbortController();
+          job.uploaded ||= await uploadFile(job.file, job.kind, {
+            signal: job.controller.signal,
+            onProgress: (progress) => dispatch({ type: "message/progress", chatId, tempId, progress }),
+          });
+          attachment = {
+            ...job.attachment,
+            url: job.uploaded.url,
+            size: job.uploaded.size || job.attachment.size,
+          };
+        }
+        const { data } = await api.post("/message", {
+          chatId,
+          clientId: tempId,
+          type: job.kind || "text",
+          content: job.content,
+          ...(attachment && { attachment }),
+          ...(job.replyToId && { replyTo: job.replyToId }),
+        });
+        outbox.current.delete(tempId);
+        if (job.localUrl) URL.revokeObjectURL(job.localUrl);
         dispatch({ type: "message/replaced", chatId, tempId, message: data, meId });
-      } catch {
+      } catch (error) {
+        if (error.name === "AbortError") return; // discarded while uploading
         dispatch({ type: "message/failed", chatId, tempId });
       }
     },
     [meId]
   );
 
+  const optimisticMessage = useCallback(
+    (chatId, tempId, extra) => ({
+      _id: tempId,
+      chat: chatId,
+      sender: { _id: meId, name: user.name, pic: user.pic },
+      type: "text",
+      createdAt: new Date().toISOString(),
+      readBy: [meId],
+      status: "sending",
+      ...extra,
+    }),
+    [meId, user]
+  );
+
+  /** Send text. `replyTo` is the message being answered (the full object, for its preview). */
   const sendMessage = useCallback(
-    (chatId, content) => {
+    (chatId, content, { replyTo } = {}) => {
       const text = content.trim();
       if (!text) return;
       const tempId = `tmp-${Date.now()}-${tempCounter++}`;
+      outbox.current.set(tempId, { content: text, replyToId: replyTo?._id });
       dispatch({
         type: "message/optimistic",
         chatId,
-        message: {
-          _id: tempId,
-          chat: chatId,
-          sender: { _id: meId, name: user.name, pic: user.pic },
-          content: text,
-          createdAt: new Date().toISOString(),
-          readBy: [meId],
-          status: "sending",
-        },
+        message: optimisticMessage(chatId, tempId, { content: text, ...(replyTo && { replyTo: replySnapshot(replyTo) }) }),
       });
-      postMessage(chatId, tempId, text);
+      deliver(chatId, tempId);
     },
-    [meId, user, postMessage]
+    [optimisticMessage, deliver]
+  );
+
+  /**
+   * Send a photo, file or voice note. Shows at once from a local object URL with a progress
+   * ring, uploads straight to Cloudinary, then posts the message with the hosted URL.
+   * `meta`: { width, height } for images, { duration, waveform } for voice notes.
+   */
+  const sendAttachment = useCallback(
+    (chatId, { kind, file, content = "", meta = {}, replyTo }) => {
+      const tempId = `tmp-${Date.now()}-${tempCounter++}`;
+      const localUrl = URL.createObjectURL(file);
+      const attachment = { name: file.name, size: file.size, mime: file.type || "application/octet-stream", ...meta };
+      outbox.current.set(tempId, { kind, file, content: content.trim(), attachment, localUrl, replyToId: replyTo?._id });
+      dispatch({
+        type: "message/optimistic",
+        chatId,
+        message: optimisticMessage(chatId, tempId, {
+          type: kind,
+          content: content.trim(),
+          attachment: { ...attachment, url: localUrl },
+          progress: 0,
+          ...(replyTo && { replyTo: replySnapshot(replyTo) }),
+        }),
+      });
+      deliver(chatId, tempId);
+    },
+    [optimisticMessage, deliver]
   );
 
   const retryMessage = useCallback(
     (chatId, tempId) => {
-      const msg = stateRef.current.messages[chatId]?.items.find((m) => m._id === tempId);
-      if (!msg) return;
+      if (!outbox.current.has(tempId)) return;
       dispatch({ type: "message/retrying", chatId, tempId });
-      postMessage(chatId, tempId, msg.content);
+      deliver(chatId, tempId);
     },
-    [postMessage]
+    [deliver]
   );
 
-  const discardMessage = useCallback(
-    (chatId, tempId) => dispatch({ type: "message/discarded", chatId, tempId }),
-    []
+  const discardMessage = useCallback((chatId, tempId) => {
+    const job = outbox.current.get(tempId);
+    job?.controller?.abort();
+    if (job?.localUrl) URL.revokeObjectURL(job.localUrl);
+    outbox.current.delete(tempId);
+    dispatch({ type: "message/discarded", chatId, tempId });
+  }, []);
+
+  // ── Edit, delete, react (optimistic, with rollback) ───────────────────────
+  const findMessage = (chatId, id) => stateRef.current.messages[chatId]?.items.find((m) => m._id === id);
+
+  const editMessage = useCallback(
+    async (chatId, id, content) => {
+      const before = findMessage(chatId, id);
+      const text = content.trim();
+      if (!before || !text || text === before.content) return true;
+      dispatch({ type: "message/updated", message: { ...before, content: text, editedAt: new Date().toISOString() } });
+      try {
+        const { data } = await api.patch(`/message/${id}`, { content: text });
+        dispatch({ type: "message/updated", message: data });
+        return true;
+      } catch (error) {
+        dispatch({ type: "message/updated", message: before });
+        toast.error("Couldn't edit message", errorMessage(error));
+        return false;
+      }
+    },
+    [toast]
+  );
+
+  const deleteMessage = useCallback(
+    async (chatId, id) => {
+      const before = findMessage(chatId, id);
+      if (!before) return;
+      const {
+        attachment: _a,
+        replyTo: _r,
+        ...rest
+      } = before;
+      dispatch({ type: "message/updated", message: { ...rest, content: "", reactions: [], deletedAt: new Date().toISOString() } });
+      try {
+        const { data } = await api.delete(`/message/${id}`);
+        dispatch({ type: "message/updated", message: data });
+      } catch (error) {
+        dispatch({ type: "message/updated", message: before });
+        toast.error("Couldn't delete message", errorMessage(error));
+      }
+    },
+    [toast]
+  );
+
+  const reactToMessage = useCallback(
+    async (chatId, id, emoji) => {
+      const before = findMessage(chatId, id);
+      if (!before) return;
+      dispatch({ type: "message/reaction", chatId, messageId: id, meId, emoji });
+      try {
+        const { data } = await api.put(`/message/${id}/reaction`, { emoji });
+        dispatch({ type: "message/updated", message: data });
+      } catch (error) {
+        dispatch({ type: "message/updated", message: before });
+        toast.error("Couldn't add reaction", errorMessage(error));
+      }
+    },
+    [meId, toast]
+  );
+
+  /** Load the page of history around one message (search hit) so it can be scrolled to. */
+  const loadAround = useCallback(
+    async (chatId, messageId) => {
+      try {
+        const { data } = await api.get(`/message/${chatId}`, { params: { limit: PAGE_SIZE, around: messageId } });
+        dispatch({ type: "messages/window", chatId, messages: data.messages, hasMore: data.hasMore, hasNewer: data.hasNewer });
+        return true;
+      } catch (error) {
+        toast.error("Couldn't open that message", errorMessage(error));
+        return false;
+      }
+    },
+    [toast]
   );
 
   const markRead = useCallback(async (chatId) => {
@@ -201,6 +343,8 @@ export function ChatProvider({ children }) {
       }
     });
 
+    socket.on("message:updated", (message) => dispatch({ type: "message/updated", message }));
+
     socket.on("message:read", ({ chatId, userId }) => {
       if (userId !== meId) dispatch({ type: "messages/readBy", chatId, userId });
     });
@@ -225,6 +369,14 @@ export function ChatProvider({ children }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.token]);
 
+  // Tapping a push notification while the app is already open asks it to show that chat.
+  useEffect(() => {
+    if (!("serviceWorker" in navigator)) return undefined;
+    const onMessage = (e) => e.data?.type === "open-chat" && typeof e.data.path === "string" && e.data.path.startsWith("/chat") && navigate(e.data.path);
+    navigator.serviceWorker.addEventListener("message", onMessage);
+    return () => navigator.serviceWorker.removeEventListener("message", onMessage);
+  }, [navigate]);
+
   // Unread count in the tab title: "(3) ìbáṣọ̀rọ̀"
   const totalUnread = useMemo(
     () => state.chats.reduce((sum, c) => sum + (c.unreadCount || 0), 0),
@@ -239,9 +391,14 @@ export function ChatProvider({ children }) {
       loadChats,
       loadMessages,
       loadOlder,
+      loadAround,
       sendMessage,
+      sendAttachment,
       retryMessage,
       discardMessage,
+      editMessage,
+      deleteMessage,
+      reactToMessage,
       markRead,
       emitTyping,
       upsertChat,
@@ -251,9 +408,14 @@ export function ChatProvider({ children }) {
       loadChats,
       loadMessages,
       loadOlder,
+      loadAround,
       sendMessage,
+      sendAttachment,
       retryMessage,
       discardMessage,
+      editMessage,
+      deleteMessage,
+      reactToMessage,
       markRead,
       emitTyping,
       upsertChat,

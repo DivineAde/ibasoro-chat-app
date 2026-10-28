@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildRows, chatPreview, chatTitle, getOtherUser, isDefaultPic, isReadByAll } from "./chat";
+import { buildRows, canEditMessage, chatPreview, chatTitle, getOtherUser, isDefaultPic, isReadByAll } from "./chat";
 
 const me = { _id: "me", name: "Me" };
 const bo = { _id: "bo", name: "Bo Adé" };
@@ -55,5 +55,30 @@ describe("buildRows", () => {
   it("inserts a divider whenever the day changes", () => {
     const next = { ...at("10:00", "bo", "next"), createdAt: "2024-03-06T10:00:00Z" };
     expect(rows([at("10:00"), next]).filter((r) => r.type === "day")).toHaveLength(2);
+  });
+});
+
+describe("message types", () => {
+  const chat = { users: [{ _id: "me" }, { _id: "bo" }] };
+  const withLatest = (latestMessage) => ({ ...chat, latestMessage });
+  it("previews photos, voice notes, files and deletions", () => {
+    const me = { _id: "me" };
+    const bo = (extra) => ({ sender: { _id: "bo" }, ...extra });
+    expect(chatPreview(withLatest(bo({ type: "image", content: "" })), me)).toBe("📷 Photo");
+    expect(chatPreview(withLatest(bo({ type: "image", content: "Lagos" })), me)).toBe("📷 Lagos");
+    expect(chatPreview(withLatest(bo({ type: "voice" })), me)).toBe("🎤 Voice message");
+    expect(chatPreview(withLatest(bo({ type: "file", attachment: { name: "cv.pdf" } })), me)).toBe("📎 cv.pdf");
+    expect(chatPreview(withLatest(bo({ content: "secret", deletedAt: "2024-01-01" })), me)).toBe("Message deleted");
+  });
+
+  it("allows editing only my own recent text messages", () => {
+    const now = Date.parse("2024-01-01T12:00:00Z");
+    const mine = { sender: { _id: "me" }, createdAt: "2024-01-01T11:50:00Z" };
+    expect(canEditMessage(mine, "me", now)).toBe(true);
+    expect(canEditMessage({ ...mine, createdAt: "2024-01-01T11:30:00Z" }, "me", now)).toBe(false);
+    expect(canEditMessage({ ...mine, type: "image" }, "me", now)).toBe(false);
+    expect(canEditMessage({ ...mine, deletedAt: "x" }, "me", now)).toBe(false);
+    expect(canEditMessage({ ...mine, status: "sending" }, "me", now)).toBe(false);
+    expect(canEditMessage({ ...mine, sender: { _id: "bo" } }, "me", now)).toBe(false);
   });
 });

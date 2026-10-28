@@ -1,6 +1,6 @@
 import { cn } from "../../lib/cn";
 
-export function Switch({ checked, onChange, label, id }) {
+export function Switch({ checked, onChange, label, id, disabled }) {
   return (
     <button
       id={id}
@@ -8,9 +8,10 @@ export function Switch({ checked, onChange, label, id }) {
       role="switch"
       aria-checked={checked}
       aria-label={label}
+      disabled={disabled}
       onClick={() => onChange(!checked)}
       className={cn(
-        "press relative h-[31px] w-[51px] shrink-0 rounded-full transition-colors duration-200 ease-out",
+        "press relative h-[31px] disabled:opacity-50 w-[51px] shrink-0 rounded-full transition-colors duration-200 ease-out",
         checked ? "bg-success" : "bg-ink/20"
       )}
     >

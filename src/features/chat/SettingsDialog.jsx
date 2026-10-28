@@ -12,6 +12,7 @@ import { useTheme } from "../../context/ThemeContext";
 import { errorMessage } from "../../lib/api";
 import { uploadImage } from "../../lib/cloudinary";
 import { isSoundOn, setSoundOn } from "../../lib/sound";
+import { disablePush, enablePush, getPushState } from "../../lib/push";
 import { updateProfile } from "./chatApi";
 
 const THEMES = [
@@ -40,6 +41,35 @@ export function SettingsDialog({ open, onClose }) {
   const [sound, setSound] = useState(isSoundOn);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [push, setPush] = useState("checking"); // see lib/push.js, plus "checking" | "busy"
+
+  useEffect(() => {
+    if (open) getPushState().then(setPush);
+  }, [open]);
+
+  const togglePush = async (on) => {
+    setPush("busy");
+    try {
+      if (on) {
+        const result = await enablePush();
+        if (result === "unavailable") toast.info("Not set up yet", "The server has no push keys configured.");
+        else if (result === "blocked") toast.error("Notifications are blocked", "Allow them for this site in your browser settings.");
+        setPush(result === "on" ? "on" : result === "blocked" ? "blocked" : "off");
+      } else {
+        await disablePush();
+        setPush("off");
+      }
+    } catch (error) {
+      toast.error("Couldn’t change notifications", errorMessage(error));
+      setPush(await getPushState());
+    }
+  };
+
+  const pushHint = {
+    unsupported: "This browser doesn’t support notifications.",
+    "needs-install": "On iPhone, add ìbáṣọ̀rọ̀ to your Home Screen first (Share → Add to Home Screen).",
+    blocked: "Blocked in your browser settings for this site.",
+  }[push];
 
   useEffect(() => {
     if (open) setName(user.name);
@@ -93,6 +123,16 @@ export function SettingsDialog({ open, onClose }) {
         </section>
 
         <section aria-label="Notifications" className="rounded-[16px] bg-sunken px-4">
+          <Row title="Push notifications" description={pushHint || "Get new messages when the app is closed."} htmlFor="push">
+            <Switch
+              id="push"
+              label="Push notifications"
+              checked={push === "on"}
+              disabled={Boolean(pushHint) || push === "checking" || push === "busy"}
+              onChange={togglePush}
+            />
+          </Row>
+          <div className="h-px bg-line" />
           <Row title="Message sounds" description="Play a soft sound for new messages." htmlFor="sound">
             <Switch
               id="sound"
