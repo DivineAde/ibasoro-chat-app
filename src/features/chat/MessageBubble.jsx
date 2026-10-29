@@ -1,4 +1,4 @@
-import { memo, useState } from "react";
+import { memo, useCallback, useState } from "react";
 import { AlertCircle, Ban, Check, CheckCheck, Clock, MoreHorizontal, Reply, Smile } from "lucide-react";
 import { cn } from "../../lib/cn";
 import { formatTime } from "../../lib/format";
@@ -96,6 +96,7 @@ export const MessageBubble = memo(function MessageBubble({
   const interactive = !unsent && !deleted;
 
   const openMenu = (rect) => interactive && setMenuAnchor(rect);
+  const closeMenu = useCallback(() => setMenuAnchor(null), []);
   const gestures = useMessageGestures({
     enabled: interactive,
     onMenu: openMenu,
@@ -136,18 +137,21 @@ export const MessageBubble = memo(function MessageBubble({
       <div className={cn("group/msg relative flex max-w-[min(80%,34rem)] flex-col", mine ? "items-end" : "items-start")}>
         {isGroup && !mine && showName && <span className="mb-0.5 px-3 text-caption font-semibold text-accent-ink">{sender.name}</span>}
 
-        {/* Desktop hover toolbar */}
+        {/* Desktop hover toolbar. The wrapper's padding (not a margin) bridges the gap to the
+            bubble, so the pointer never leaves the hover area on its way to a button. */}
         {interactive && (
           <div
             className={cn(
-              "absolute top-1/2 z-[2] hidden -translate-y-1/2 items-center rounded-full bg-raised p-0.5 shadow-overlay",
-              "opacity-0 transition-opacity duration-120 focus-within:opacity-100 group-hover/msg:opacity-100 [@media(hover:hover)]:flex",
-              mine ? "right-full mr-2" : "left-full ml-2"
+              "absolute top-1/2 z-[2] hidden -translate-y-1/2 opacity-0 transition-opacity duration-120",
+              "focus-within:opacity-100 group-hover/msg:opacity-100 [@media(hover:hover)]:flex",
+              mine ? "right-full pr-2" : "left-full pl-2"
             )}
           >
-            <ToolbarButton label="React" icon={Smile} onClick={(e) => openMenu(e.currentTarget.closest("[data-bubble]").getBoundingClientRect())} />
-            <ToolbarButton label="Reply" icon={Reply} onClick={() => actions.onReply?.(message)} />
-            <ToolbarButton label="More actions" icon={MoreHorizontal} onClick={(e) => openMenu(e.currentTarget.closest("[data-bubble]").getBoundingClientRect())} />
+            <div className="flex items-center rounded-full bg-raised p-0.5 shadow-overlay">
+              <ToolbarButton label="React" icon={Smile} onClick={() => openMenu(gestures.bubbleRef.current.getBoundingClientRect())} />
+              <ToolbarButton label="Reply" icon={Reply} onClick={() => actions.onReply?.(message)} />
+              <ToolbarButton label="More actions" icon={MoreHorizontal} onClick={() => openMenu(gestures.bubbleRef.current.getBoundingClientRect())} />
+            </div>
           </div>
         )}
 
@@ -241,7 +245,7 @@ export const MessageBubble = memo(function MessageBubble({
           mine={mine}
           meId={meId}
           canEdit={canEditMessage(message, meId)}
-          onClose={() => setMenuAnchor(null)}
+          onClose={closeMenu}
           onReact={(emoji) => actions.onReact?.(message, emoji)}
           onReply={() => actions.onReply?.(message)}
           onEdit={() => actions.onEdit?.(message)}

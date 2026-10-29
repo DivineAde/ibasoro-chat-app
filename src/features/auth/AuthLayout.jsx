@@ -1,35 +1,31 @@
 import { LogoMark, Wordmark } from "../../components/ui/Logo";
 import { ThemeToggle } from "../../components/ui/ThemeToggle";
 
-/** A static peek at the product: three bubbles, no stock illustration. */
-function BubblePreview() {
-  const row = "max-w-[78%] rounded-bubble px-4 py-2.5 text-subhead shadow-raised";
-  return (
-    <div aria-hidden className="mt-10 flex w-full max-w-sm flex-col gap-2.5">
-      <div className={`${row} self-start rounded-bl-md bg-bubble-in text-ink`}>Ẹ káàbọ̀! Did you get home okay?</div>
-      <div className={`${row} self-end rounded-br-md bg-bubble-out text-accent-fg`}>Just landed. Calling you in five.</div>
-      <div className={`${row} self-start rounded-bl-md bg-bubble-in text-ink`}>Perfect. Kettle’s on ☕</div>
-    </div>
-  );
-}
+/**
+ * Sign-in / sign-up shell. On desktop the left half is an image panel: the artwork is
+ * `public/auth-hero.svg` (hand-dyed adire cloth, drawn for the app). To use a photo
+ * instead, drop it at `public/auth-hero.jpg` and change `HERO` below.
+ */
+const HERO = "/auth-hero.svg";
 
 export function AuthLayout({ title, subtitle, eyebrow, children, footer }) {
   return (
     <div className="grid h-full overflow-y-auto lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
-      {/* Brand panel – desktop only */}
-      <aside className="chat-pattern relative hidden flex-col justify-between bg-accent-soft p-12 lg:flex">
-        <div className="flex items-center gap-3">
-          <LogoMark size={36} />
-          <Wordmark className="text-title3" />
+      {/* Image panel – desktop only. Text sits on a gradient so it stays legible on any picture. */}
+      <aside
+        className="relative hidden flex-col justify-between overflow-hidden bg-[#1b2166] bg-cover bg-center p-12 text-white lg:flex"
+        style={{ backgroundImage: `url(${HERO})` }}
+      >
+        <div aria-hidden className="absolute inset-0 bg-gradient-to-b from-black/45 via-black/0 to-black/65" />
+
+        <div className="relative flex items-center gap-3">
+          <LogoMark size={36} className="rounded-[10px] ring-2 ring-white/40" />
+          <span className="text-title3 font-bold tracking-tight">ìbáṣọ̀rọ̀</span>
         </div>
-        <div>
-          <p className="text-footnote font-semibold uppercase tracking-[0.14em] text-accent-ink">
-            ìbáṣọ̀rọ̀ · conversation, in Yorùbá
-          </p>
-          <h2 className="mt-3 max-w-[14ch] text-display text-ink">Talk like you’re in the same room.</h2>
-          <BubblePreview />
+
+        <div className="relative">
+          <h2 className="max-w-[12ch] text-display drop-shadow-[0_2px_24px_rgb(0_0_0/0.35)]">Talk like you’re in the same room.</h2>
         </div>
-        <p className="text-footnote text-ink-2">Private by default. Fast everywhere.</p>
       </aside>
 
       <main className="relative flex min-h-full flex-col px-6 pb-[calc(var(--safe-bottom)+24px)] pt-[calc(var(--safe-top)+16px)]">

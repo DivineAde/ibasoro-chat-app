@@ -33,8 +33,9 @@ export function UserRow({ user, selected, disabled, onSelect, trailing }) {
 /**
  * Search box + results list. Used for new chats, new groups and adding members.
  * `excludeIds` hides people already in the conversation.
+ * `idleContent` replaces the "type at least 2 letters" hint while the box is empty (Discover).
  */
-export function UserSearch({ query, onQueryChange, onSelect, selectedIds = [], excludeIds = [], autoFocus, placeholder }) {
+export function UserSearch({ query, onQueryChange, onSelect, selectedIds = [], excludeIds = [], autoFocus, placeholder, idleContent }) {
   const { results, loading, error, tooShort } = useUserSearch(query);
   const visible = results.filter((u) => !excludeIds.includes(u._id));
 
@@ -52,7 +53,9 @@ export function UserSearch({ query, onQueryChange, onSelect, selectedIds = [], e
         onChange={(e) => onQueryChange(e.target.value)}
       />
       <div className="mt-2 min-h-[120px]" aria-live="polite">
-        {loading ? (
+        {idleContent && !query.trim() ? (
+          idleContent
+        ) : loading ? (
           <div className="space-y-2 pt-1">
             {[0, 1, 2].map((i) => (
               <div key={i} className="flex items-center gap-3 px-3 py-2">

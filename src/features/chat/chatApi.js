@@ -27,3 +27,6 @@ export const updateProfile = async (patch) => (await api.patch("/user/me", patch
 /** Full-text-ish search over the messages in my chats. */
 export const searchMessages = async (q, signal) =>
   (await api.get("/message/search", { params: { q }, signal })).data.results;
+
+/** Suggested people: { known: [{ …, reason }], newest: [{ …, joinedAt }] } – never includes emails. */
+export const discoverPeople = async (signal) => (await api.get("/user/discover", { params: {}, signal })).data;

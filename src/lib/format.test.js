@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatDayLabel, formatLastSeen, formatListTime, initials } from "./format";
+import { formatDayLabel, formatJoined, formatLastSeen, formatListTime, initials } from "./format";
 
 const now = new Date(2024, 2, 20, 15, 0); // Wed 20 Mar 2024, local time
 const local = (d, h = 9, m = 41) => new Date(2024, 2, d, h, m).toISOString();
@@ -29,5 +29,15 @@ describe("format", () => {
     expect(initials("ọlá adé bello")).toBe("ỌA");
     expect(initials("Bo")).toBe("B");
     expect(initials("")).toBe("?");
+  });
+});
+
+describe("formatJoined", () => {
+  const now = new Date("2026-10-28T12:00:00");
+  it("describes recent joins in plain words", () => {
+    expect(formatJoined("2026-10-28T07:00:00", now)).toBe("Joined today");
+    expect(formatJoined("2026-10-27T07:00:00", now)).toBe("Joined yesterday");
+    expect(formatJoined("2026-10-23T07:00:00", now)).toBe("Joined 5 days ago");
+    expect(formatJoined(undefined, now)).toBe("");
   });
 });

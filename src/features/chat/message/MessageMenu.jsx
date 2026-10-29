@@ -37,12 +37,15 @@ export function MessageMenu({ message, anchor, mine, meId, canEdit, onClose, onR
   const current = myReaction(message.reactions, meId);
   const a = message.attachment;
 
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+
   useEffect(() => {
-    const onKey = (e) => e.key === "Escape" && onClose();
+    const onKey = (e) => e.key === "Escape" && closeRef.current();
     document.addEventListener("keydown", onKey);
     panel.current?.querySelector("button")?.focus({ preventScroll: true });
     return () => document.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  }, []);
 
   // Close if the page scrolls or resizes: the anchor would no longer match.
   useEffect(() => {

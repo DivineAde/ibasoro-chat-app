@@ -49,3 +49,14 @@ export const initials = (name = "") =>
     .slice(0, 2)
     .map((p) => p[0]?.toUpperCase() || "")
     .join("") || "?";
+
+/** "Joined today" / "Joined yesterday" / "Joined 5 days ago" / "Joined Oct 3". */
+export const formatJoined = (iso, now = new Date()) => {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const diff = daysBetween(now, d);
+  if (diff <= 0) return "Joined today";
+  if (diff === 1) return "Joined yesterday";
+  if (diff < 14) return `Joined ${diff} days ago`;
+  return `Joined ${d.toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
+};

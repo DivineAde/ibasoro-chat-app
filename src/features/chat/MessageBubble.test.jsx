@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { MessageBubble } from "./MessageBubble";
+import { MessageActionsContext } from "./message/MessageActionsContext";
 
 const base = {
   message: { _id: "m1", sender: { _id: "me", name: "Me" }, content: "hello https://example.com.", createdAt: "2024-03-05T10:00:00Z" },
@@ -74,5 +75,49 @@ describe("MessageBubble content types", () => {
     // No provider: actions are empty, so just check the chip renders its count and state.
     expect(screen.getByRole("button", { name: /👍 2/ })).toBeInTheDocument();
     void onReact;
+  });
+});
+
+describe("MessageBubble desktop actions", () => {
+  const rect = { top: 100, bottom: 140, left: 50, right: 250, width: 200, height: 40 };
+  const withActions = (actions, props) =>
+    render(
+      <MessageActionsContext.Provider value={{ meId: "me", ...actions }}>
+        <ul><MessageBubble {...base} mine={false} message={{ ...base.message, sender: { _id: "bo", name: "Bo" } }} {...props} /></ul>
+      </MessageActionsContext.Provider>
+    );
+
+  it("opens the menu from the hover toolbar's React and More buttons, and reacts", async () => {
+    const onReact = vi.fn();
+    const spy = vi.spyOn(Element.prototype, "getBoundingClientRect").mockReturnValue(rect);
+    withActions({ onReact });
+    await userEvent.click(screen.getByRole("button", { name: "React", exact: true }));
+    await userEvent.click(screen.getByRole("button", { name: "React 😂" }));
+    expect(onReact).toHaveBeenCalledWith(expect.objectContaining({ _id: "m1" }), "😂");
+    expect(screen.queryByRole("menu")).toBeNull(); // closes after choosing
+
+    await userEvent.click(screen.getByRole("button", { name: "More actions" }));
+    expect(screen.getByRole("menu", { name: "Message actions" })).toBeInTheDocument();
+    spy.mockRestore();
+  });
+
+  it("toolbar Reply and the menu's Reply both reach onReply", async () => {
+    const onReply = vi.fn();
+    vi.spyOn(Element.prototype, "getBoundingClientRect").mockReturnValue(rect);
+    withActions({ onReply });
+    await userEvent.click(screen.getByRole("button", { name: "Reply", exact: true }));
+    expect(onReply).toHaveBeenCalledTimes(1);
+    await userEvent.click(screen.getByRole("button", { name: "More actions" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Reply" }));
+    expect(onReply).toHaveBeenCalledTimes(2);
+  });
+
+  it("the menu offers Delete only on my own messages", async () => {
+    const onDelete = vi.fn();
+    vi.spyOn(Element.prototype, "getBoundingClientRect").mockReturnValue(rect);
+    withActions({ onDelete }, { mine: true, message: base.message });
+    await userEvent.click(screen.getByRole("button", { name: "More actions" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Delete" }));
+    expect(onDelete).toHaveBeenCalled();
   });
 });

@@ -41,6 +41,7 @@ export function SettingsDialog({ open, onClose }) {
   const [sound, setSound] = useState(isSoundOn);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [discoverable, setDiscoverable] = useState(user.discoverable !== false);
   const [push, setPush] = useState("checking"); // see lib/push.js, plus "checking" | "busy"
 
   useEffect(() => {
@@ -62,6 +63,16 @@ export function SettingsDialog({ open, onClose }) {
     } catch (error) {
       toast.error("Couldn’t change notifications", errorMessage(error));
       setPush(await getPushState());
+    }
+  };
+
+  const toggleDiscoverable = async (on) => {
+    setDiscoverable(on);
+    try {
+      updateUser({ discoverable: (await updateProfile({ discoverable: on })).discoverable });
+    } catch (error) {
+      setDiscoverable(!on);
+      toast.error("Couldn’t save", errorMessage(error));
     }
   };
 
@@ -120,6 +131,12 @@ export function SettingsDialog({ open, onClose }) {
         <section aria-label="Appearance" className="space-y-2">
           <h3 className="text-footnote font-semibold uppercase tracking-wide text-ink-3">Appearance</h3>
           <SegmentedControl label="Theme" options={THEMES} value={preference} onChange={setPreference} />
+        </section>
+
+        <section aria-label="Privacy" className="rounded-[16px] bg-sunken px-4">
+          <Row title="Show me in Discover" description="New people can find and message you. People in your groups always can." htmlFor="discoverable">
+            <Switch id="discoverable" label="Show me in Discover" checked={discoverable} onChange={toggleDiscoverable} />
+          </Row>
         </section>
 
         <section aria-label="Notifications" className="rounded-[16px] bg-sunken px-4">

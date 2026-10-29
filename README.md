@@ -53,4 +53,8 @@ Rules of thumb: components render, `lib/` and `chatReducer` hold the logic (and 
 - **Search** (`SearchResults.jsx`) matches chats locally and messages on the server; a result opens `/chat/:id?m=<messageId>`, which loads the page of history around it and highlights the message.
 - **Push** (`lib/push.js`, `public/push-sw.js`) is opt-in from Settings. The service worker stays quiet while the app is visible. iPhones only allow Web Push once the app is added to the Home Screen.
 
+## Discover
+
+*New message* opens with suggestions instead of an empty box (`DiscoverFeed.jsx`): people from your groups you haven't messaged, newcomers, and an invite card (Web Share, or copies the link). **Say hi** opens the chat and sends a 👋. Typing swaps the feed for search results. Discovery never shows emails, and Settings → *Show me in Discover* lets anyone opt out of the newcomers list.
+
 See the backend repo's `docs/ROADMAP.md` for what to build next (calls, …).
