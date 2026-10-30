@@ -11,9 +11,9 @@ const HERO = "/auth-hero.svg";
 export function AuthLayout({ title, subtitle, eyebrow, children, footer }) {
   return (
     <div className="grid h-full overflow-y-auto lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
-      {/* Image panel – desktop only. Text sits on a gradient so it stays legible on any picture. */}
+      {/* Image panel – desktop only. Pinned to the viewport so it never scrolls with a long form. Text sits on a gradient so it stays legible on any picture. */}
       <aside
-        className="relative hidden flex-col justify-between overflow-hidden bg-[#1b2166] bg-cover bg-center p-12 text-white lg:flex"
+        className="relative hidden flex-col justify-between self-start overflow-hidden bg-[#1b2166] bg-cover bg-center p-12 text-white lg:sticky lg:top-0 lg:flex lg:h-[100dvh]"
         style={{ backgroundImage: `url(${HERO})` }}
       >
         <div aria-hidden className="absolute inset-0 bg-gradient-to-b from-black/45 via-black/0 to-black/65" />
